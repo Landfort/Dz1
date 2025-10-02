@@ -5,34 +5,35 @@
 using namespace std;
 //05430D083B183F91BCD8193EDF4DE94F00080015BCA408C0163BFB4DAB173F80F5081BC16EA4371cc12d31271d42513d4f4a000000004b000000004c00000000
 
-struct parameter
+struct parameter // Структура для описания всех типов параметров принимаемых с датчика
 {
-	int ID;			//DECOR
-	bool flag;		//FUNC
-	float info;		//FUNC-DECOR
-	int weight;		//FUNC
-	int casing;		//FUNC
-	string name;	//DECOR
-	string type;	//DECOR
-	string measure;	//DECOR
-	//strcut a()
+	int ID;			//ID параметра
+	bool flag;		//Флаг присутствия параметра в посылке(см. void filter)
+	float info;		//переменная для преобразования, записи и вывода float данных (см. void deshifr, case 4)
+	int weight;		//вес данных параметра, по факту количество данных после ID (см. void filter)
+	int casing;		//номер для case присваеваемый в зависимости от типа данных (см. void deshifr)
+	string name;	//Имя параметра для вывода на экран
+	string type;	//Тип параметра для вывода на экран
+	string measure;	//Ед. измерения параметра для вывода на экран
 };
 
-void StructInit(parameter array[]);
-void Structout(parameter array[]);
-void deshifr(parameter d_structmas[], unsigned char d_pack[], int pack_cnt, int ai);
+void StructInit(parameter array[]);														//Функция инициализации структуры
+void Structout(parameter array[]);														//Функция предварительного вывода этой структуры, без данных
+void deshifr(parameter d_structmas[], unsigned char d_pack[], int pack_cnt, int ai);	//Функция обработки принятых байт
 
 
-void filter(parameter f_structmas[], unsigned char f_pack[],int packlen) { //функция поиска существующих ID 
+void filter(parameter f_structmas[], unsigned char f_pack[],int packlen) {				//функция поиска существующих ID 
 	int pack_cnt = 0;
-	while (pack_cnt < packlen)// идем по байтам принятого пакета
+	while (pack_cnt < packlen)															// идем по байтам принятого пакета
 	{
-		for (int i = 0; i < 17; i++) // сверяем байт со списком наших ID
+		for (int i = 0; i < 17; i++)													// сверяем байт со списком наших ID
 		{
-			if (f_pack[pack_cnt] == f_structmas[i].ID && f_structmas[i].flag!=1) {//Если найдено соответствие и байт является ID
-				f_structmas[i].flag = 1;
-				deshifr(f_structmas, f_pack, pack_cnt,i);
-				pack_cnt = pack_cnt + f_structmas[i].weight;//пропускаем байты идущие за ID, поскольку они являются данными
+			if (f_pack[pack_cnt] == f_structmas[i].ID && f_structmas[i].flag!=1) {		//Если ID обнаружен и не обработан ранее (флаг не выставлен)
+				f_structmas[i].flag = 1;												//установка флага
+				deshifr(f_structmas, f_pack, pack_cnt,i);								//вызов функции обработки данных
+				pack_cnt = pack_cnt + f_structmas[i].weight;							//Счетчик, идущий по байтам, пропускает байты данных параметра. 
+																						//Увеличиваясь после ID параметра на "вес" параметра, 
+																						// он устанавливается в месте ID следующего параметра
 				
 			}
 		}
@@ -42,10 +43,10 @@ void filter(parameter f_structmas[], unsigned char f_pack[],int packlen) { //ф�
 
 void deshifr(parameter d_structmas[], unsigned char d_pack[], int pack_cnt, int ai)
 {
-	switch (d_structmas[ai].casing)
+	switch (d_structmas[ai].casing)														//В зависимости от значения casing, т.е типа параметра, назначается обработка
 	{
-		case 4: {
-			int mas_cnt = 3;
+		case 4: {																		//Обработка float
+			int mas_cnt = 3;															//Массив из 4 байт заполняется и memcpy-руется во float
 			unsigned char mas[4] = { 0x00,0x00,0x00,0x00 };
 			for (int j = pack_cnt + 1; j < pack_cnt + 5; ++j)
 			{
@@ -65,8 +66,8 @@ void deshifr(parameter d_structmas[], unsigned char d_pack[], int pack_cnt, int 
 			break;
 		}
 		
-		case 3: { 
-			
+		case 3: {																		//Обработка float[4]
+																						//Идентичен float только 4 раза
 			float fl_mas[4];
 			int fl_cnt = 0;
 			while (fl_cnt < 4) {
@@ -97,7 +98,7 @@ void deshifr(parameter d_structmas[], unsigned char d_pack[], int pack_cnt, int 
 			break; 
 		}
 
-		case 2: {
+		case 2: {																		//Обработка bool
 			if (d_pack[pack_cnt + 1] == 1) d_structmas[ai].info = 1;
 			else d_structmas[ai].info = 0;
 
@@ -120,7 +121,7 @@ void deshifr(parameter d_structmas[], unsigned char d_pack[], int pack_cnt, int 
 			break;
 		}
 
-		case 1: {
+		case 1: {																		//Обработка char
 			cout << fixed << left << setw(15) << d_structmas[ai].name << " "
 				<< fixed << left << setw(3) << d_structmas[ai].ID << " "
 				<< fixed << left << setw(8) << d_pack[pack_cnt] << " "
@@ -132,7 +133,7 @@ void deshifr(parameter d_structmas[], unsigned char d_pack[], int pack_cnt, int 
 	}
 }
 
-int maslen(unsigned char m_pack[]) { // функция подсчета веса массива
+int maslen(unsigned char m_pack[]) {													// функция подсчета веса массива
 	int len;
 	int flag = 0xFF;
 	int i = 0;
@@ -142,16 +143,17 @@ int maslen(unsigned char m_pack[]) { // функция подсчета веса
 }
 
 int main()
-{
+{   //ПАКЕТЫ ДАННЫХ:
 	//unsigned char pack[] = {0x05,0x3F,0x80,0x00,0x00,0x09,0x01,0x1C,0x40,0x00,0x00,0x00,0xFF};
 	//unsigned char pack[] = { 0x4C,0x41,0xA4,0x00,0x00,0x4B,0x3F,0x91,0xBC,0xD8,0xFF };
 	//unsigned char pack[] = { 0x07,0x41,0xA4,0x00,0x00,0x05,0x3F,0x91,0xBC,0xD8,0x19,0x41,0x35,0x47,0xAE,0xFF };
-	unsigned char pack[] = {0x05,0x43,0x0D,0x08,0x3B,0x18,0x3F,0x91,0xBC,0xD8,0x19,0x3E,0xDF,0x4D,0xE9,0x4D,
-	0x42,0x28,0x69,0xE2,0x41,0xF8,0xF5,0xC3,0x41,0xDE,0xC2,0x8F,0x3C,0x59,0x4D,0x0E,0xFF};
-	/*unsigned char pack[] = { 0x05,0x43,0x0D,0x08,0x3B,0x18,0x3F,0x91,0xBC,0xD8,0x19,0x3E,0xDF,0x4D,0xE9,
+	//unsigned char pack[] = {0x05,0x43,0x0D,0x08,0x3B,0x18,0x3F,0x91,0xBC,0xD8,0x19,0x3E,0xDF,0x4D,0xE9,0xFF};
+	/*unsigned char pack[] = {0x05,0x43,0x0D,0x08,0x3B,0x18,0x3F,0x91,0xBC,0xD8,0x19,0x3E,0xDF,0x4D,0xE9,0x4D,        //ALERT!!!float[4] начинается на 0x4D. В посылке 2 байта 0x4D, я переставлял данные в пакете местами для теста и раза 4 сбивался и брал не тот байт.
+	0x42,0x28,0x69,0xE2,0x41,0xF8,0xF5,0xC3,0x41,0xDE,0xC2,0x8F,0x3C,0x59,0x4D,0x0E,0xFF };*/
+	unsigned char pack[] = { 0x05,0x43,0x0D,0x08,0x3B,0x18,0x3F,0x91,0xBC,0xD8,0x19,0x3E,0xDF,0x4D,0xE9,
 		0x4F,0x00,0x08,0x00,0x15,0xBC,0xA4,0x08,0xC0,0x16,0x3B,0xFB,0x4D,0xAB,0x17,
 		0x3F,0x80,0xF5,0x08,0x1B,0xC1,0x6E,0xA4,0x37,0x1C,0xC1,0x2D,0x31,0x27,0x1D,
-		0x42,0x51,0x3D,0x4F,0x4A,0x00,0x00,0x00,0x00,0x4B,0x00,0x00,0x00,0x00,0x4C,0x00,0x00,0x00,0x00,0xFF };*/
+		0x42,0x51,0x3D,0x4F,0x4A,0x00,0x00,0x00,0x00,0x4B,0x00,0x00,0x00,0x00,0x4C,0x00,0x00,0x00,0x00,0xFF };
 
 	setlocale(LC_ALL, "Rus");
 
@@ -163,7 +165,7 @@ int main()
 	return 0;
 }
 
-void StructInit(parameter arrayS[])
+void StructInit(parameter arrayS[]) //Создание параметров согласно структуре и заполнение массива этими параметрами
 {
 	parameter P5 {5, 0, 0, 4, 4 ,"kHeading",       "float",    "град."};
 	parameter P24{24,0, 0, 4, 4 ,"kPitch",         "float",    "град." };  
@@ -203,7 +205,7 @@ void StructInit(parameter arrayS[])
 }
 
 
-void Structout(parameter array[])
+void Structout(parameter array[]) //Вывод массива параметров без данных для графических корректировок
 {
 	for (int i = 0; i < 17; i++)
 	{
